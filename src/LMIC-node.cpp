@@ -56,9 +56,30 @@
 //  █ █ █▀▀ █▀▀ █▀▄   █▀▀ █▀█ █▀▄ █▀▀   █▀▄ █▀▀ █▀▀ ▀█▀ █▀█
 //  █ █ ▀▀█ █▀▀ █▀▄   █   █ █ █ █ █▀▀   █▀▄ █▀▀ █ █  █  █ █
 //  ▀▀▀ ▀▀▀ ▀▀▀ ▀ ▀   ▀▀▀ ▀▀▀ ▀▀  ▀▀▀   ▀▀  ▀▀▀ ▀▀▀ ▀▀▀ ▀ ▀
+#include <Arduino.h>
+#include "MHZ19.h"                                        
+#include <SoftwareSerial.h>                                // Remove if using HardwareSerial
+#include <LiquidCrystal_I2C.h>
 
 
-const uint8_t payloadBufferLength = 4;    // Adjust to fit max payload length
+
+// Create the lcd object address 0x3F and 16 columns x 2 rows 
+LiquidCrystal_I2C lcd (0x27, 16,2);  //
+MHZ19 myMHZ19;                                             // Constructor for library
+
+
+#define RX_PIN 16                                          // Rx pin which the MHZ19 Tx pin is attached to
+#define TX_PIN 17                                          // Tx pin which the MHZ19 Rx pin is attached to
+#define BAUDRATE 9600                                      // Device to MH-Z19 Serial baudrate (should not be changed)
+
+SoftwareSerial mySerial(RX_PIN, TX_PIN);                   // (Uno example) create device to MH-Z19 serial
+
+
+
+
+
+
+const uint8_t payloadBufferLength = 10;    // Adjust to fit max payload length
 
 
 //  █ █ █▀▀ █▀▀ █▀▄   █▀▀ █▀█ █▀▄ █▀▀   █▀▀ █▀█ █▀▄
@@ -690,7 +711,39 @@ lmic_tx_error_t scheduleUplink(uint8_t fPort, uint8_t* data, uint8_t dataLength,
 //  █ █ ▀▀█ █▀▀ █▀▄   █   █ █ █ █ █▀▀   █▀▄ █▀▀ █ █  █  █ █
 //  ▀▀▀ ▀▀▀ ▀▀▀ ▀ ▀   ▀▀▀ ▀▀▀ ▀▀  ▀▀▀   ▀▀  ▀▀▀ ▀▀▀ ▀▀▀ ▀ ▀
 
+// ------------------------------------------------- USER CODE --------------------------------------
 
+
+
+/* VARIABLES */
+#define led 15                                // LED utilizado para notificar la emisión de un mensaje.
+int counter = 0;
+
+
+unsigned long period_co2 = 10000;
+
+unsigned long getDataTimer = 0;
+
+
+char msg[70];
+
+char id_device[]="UC-64JTM16";
+int value = 0;
+
+int red = 27;
+int green = 26;
+int blue = 25;
+ int Buzzer = 14; //for ESP32 Microcontroller
+
+int umbral3 = 1300;
+int umbral2=800;
+int umbral1=600;
+
+
+#define battery 39   
+int value_baterry = 0;
+
+// ----------------------------------- USER CODE END ---------------------------
 static volatile uint16_t counter_ = 0;
 
 uint16_t getCounterValue()
@@ -846,6 +899,35 @@ void setup()
 //  ▀▀▀ ▀▀▀ ▀▀▀ ▀ ▀   ▀▀▀ ▀▀▀ ▀▀  ▀▀▀   ▀▀  ▀▀▀ ▀▀▀ ▀▀▀ ▀ ▀
 
     // Place code for initializing sensors etc. here.
+    mySerial.begin(BAUDRATE);                               // (Uno example) device to MH-Z19 serial start   
+    myMHZ19.begin(mySerial);                                // *Serial(Stream) refence must be passed to library begin(). 
+    myMHZ19.autoCalibration();                              // Turn auto calibration ON (OFF autoCalibration(false))
+    Serial.print("ABC Status: "); myMHZ19.getABC() ? Serial.println("ON") :  Serial.println("OFF");  // now print it's status
+    // Initialize the LCD connected 
+    lcd.init();
+    // Turn on the backlight on LCD. 
+    lcd.backlight();
+    // print the Message on the LCD. 
+    lcd.print( "UTEC-CO2." );
+
+    Serial.begin(115200);
+
+    while (!Serial);
+
+
+    // --LED RGB
+    pinMode(red, OUTPUT);
+    pinMode(green, OUTPUT);
+    pinMode(blue, OUTPUT);
+    digitalWrite(red, LOW);
+    digitalWrite(green, LOW);
+    digitalWrite(blue, LOW);
+
+    //-- BUZZER
+    pinMode (Buzzer, OUTPUT);
+
+    pinMode(battery, INPUT);
+    // ------------------ END--------------------------------------------------
 
     resetCounter();
 
@@ -866,4 +948,150 @@ void setup()
 void loop() 
 {
     os_runloop_once();
+
+
+    if (millis() - getDataTimer >= period_co2)
+    {
+        int CO2; 
+
+        /* note: getCO2() default is command "CO2 Unlimited". This returns the correct CO2 reading even 
+        if below background CO2 levels or above range (useful to validate sensor). You can use the 
+        usual documented command with getCO2(false) */
+
+        CO2 = myMHZ19.getCO2();                             // Request CO2 (as ppm)
+        
+        Serial.print("CO2 (ppm): ");                      
+        Serial.println(CO2);                                
+
+        //Here cursor is placed on first position (col: 0) of the second line (row: 1) 
+        lcd. setCursor (0, 0);
+        lcd. print ( "Medidor UTEC-CO2" );
+        lcd. setCursor (0, 1);
+        lcd. print ( "CO2:" );        
+
+        if(CO2 /1000 < 1)
+        {
+          lcd. setCursor (5, 1);
+          lcd. print ( CO2 );
+          lcd. setCursor (8, 1);
+          lcd. print ( " (ppm) " );
+        }
+        else
+        {
+          lcd. setCursor (5, 1);
+          lcd. print ( CO2 );
+          lcd. setCursor (9, 1);
+          lcd. print ( " (ppm)" );
+        }
+        
+        delay (100);
+        int8_t Temp;
+        //Temp = myMHZ19.getTemperature();                     // Request Temperature (as Celsius)
+        //Serial.print("Temperature (C): ");                  
+        //Serial.println(Temp);                               
+
+        
+        getDataTimer = millis();  // get time
+
+
+        snprintf(msg, 70,"%s,%ld",id_device, CO2);
+        Serial.print("Sending packet: ");
+        Serial.println(msg);
+
+
+        
+        digitalWrite(red, LOW); // turn the LED BLUE on
+        digitalWrite(green, LOW);
+        digitalWrite(blue, HIGH); 
+        delay(300); // wait for a second
+        digitalWrite(red, LOW); // turn the LED on
+        digitalWrite(green, LOW);
+        digitalWrite(blue, LOW); 
+        delay(300); // wait for a second     
+        digitalWrite(red, LOW); // turn the LED on
+        digitalWrite(green, LOW);
+        digitalWrite(blue, HIGH); 
+        delay(300); // wait for a second  
+        digitalWrite(blue, LOW); 
+
+       if(CO2 >= umbral3)
+       {
+          digitalWrite(red, HIGH); // turn the LED BLUE on
+          digitalWrite(green, LOW);
+          digitalWrite(blue, LOW); 
+          digitalWrite (Buzzer, HIGH); //turn buzzer on
+          delay(500); // wait for a second
+          digitalWrite(red, LOW); // turn the LED on
+          digitalWrite(green, LOW);
+          digitalWrite(blue, LOW); 
+          digitalWrite (Buzzer, LOW); //turn buzzer on
+          delay(500); // wait for a second     
+          digitalWrite(red, HIGH); // turn the LED on
+          digitalWrite(green, LOW);
+          digitalWrite(blue, LOW); 
+          digitalWrite (Buzzer, HIGH); //turn buzzer on
+          delay(500); // wait for a second  
+          digitalWrite(red, LOW); 
+          digitalWrite(green, LOW);
+          digitalWrite(blue, LOW); 
+          digitalWrite (Buzzer, LOW); //turn buzzer on
+          delay(500); // wait for a second     
+          digitalWrite(red, HIGH); // turn the LED on
+          digitalWrite(green, LOW);
+          digitalWrite(blue, LOW); 
+          digitalWrite (Buzzer, HIGH); //turn buzzer on
+          delay(500); // wait for a second  
+          digitalWrite(red, LOW); 
+          digitalWrite(green, LOW);
+          digitalWrite(blue, LOW); 
+          digitalWrite (Buzzer, LOW); //turn buzzer on
+       }
+       if(CO2 >= umbral2)
+       {
+          digitalWrite(red, HIGH); // turn the LED BLUE on
+          digitalWrite(green, HIGH);
+          digitalWrite(blue, LOW); 
+          delay(500); // wait for a second
+          digitalWrite(red, LOW); // turn the LED on
+          digitalWrite(green, LOW);
+          digitalWrite(blue, LOW); 
+          delay(500); // wait for a second     
+          digitalWrite(red, HIGH); // turn the LED on
+          digitalWrite(green, HIGH);
+          digitalWrite(blue, LOW); 
+          delay(500); // wait for a second  
+          digitalWrite(red, LOW); // turn the LED on
+          digitalWrite(green, LOW);
+          digitalWrite(blue, LOW); 
+       }
+       if(CO2 >= umbral1)
+       {
+          digitalWrite(red, LOW); // turn the LED BLUE on
+          digitalWrite(green, HIGH);
+          digitalWrite(blue, LOW); 
+          delay(500); // wait for a second
+          digitalWrite(red, LOW); // turn the LED on
+          digitalWrite(green, LOW);
+          digitalWrite(blue, LOW); 
+          delay(500); // wait for a second     
+          digitalWrite(red, LOW); // turn the LED on
+          digitalWrite(green, HIGH);
+          digitalWrite(blue, LOW); 
+          delay(500); // wait for a second  
+          digitalWrite(red, LOW); // turn the LED on
+          digitalWrite(green, LOW);
+          digitalWrite(blue, LOW); 
+           
+       }
+
+
+       
+        counter++;                                // Aumentar contador para el siguiente mensaje.
+
+
+
+
+
+    
+    }
 }
