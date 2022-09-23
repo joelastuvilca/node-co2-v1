@@ -77,10 +77,10 @@
 
 // Pin mappings for LoRa tranceiver
 const lmic_pinmap lmic_pins = {
-    .nss = 5,
+    .nss = 4,
     .rxtx = LMIC_UNUSED_PIN,
-    .rst =27,
-    .dio = { /*dio0*/ 34, /*dio1*/ 35, /*dio2*/ LMIC_UNUSED_PIN }
+    .rst =32,
+    .dio = { /*dio0*/ 33, /*dio1*/ 35, /*dio2*/ LMIC_UNUSED_PIN }
 #ifdef MCCI_LMIC
     ,
     .rxtx_rx_active = 0,

@@ -752,7 +752,7 @@ void processWork(ostime_t doWorkJobTimeStamp)
         // message every time processWork() is executed.
 
         // Schedule uplink message if possible
-        if (LMIC.opmode & OP_TXRXPEND)
+        if (LMIC.opmode & (OP_POLL | OP_TXDATA | OP_TXRXPEND))
         {
             // TxRx is currently pending, do not send.
             #ifdef USE_SERIAL
