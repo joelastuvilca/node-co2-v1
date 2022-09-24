@@ -76,10 +76,42 @@ SoftwareSerial mySerial(RX_PIN, TX_PIN);                   // (Uno example) crea
 
 
 
+char msg[30];
+
+/* VARIABLES */
+#define led 15                                // LED utilizado para notificar la emisión de un mensaje.
+int counter = 0;
 
 
+unsigned long period_co2 = 59500;  // 59.5 seguds 59 500
 
-const uint8_t payloadBufferLength = 10;    // Adjust to fit max payload length
+unsigned long getDataTimer = 0;
+
+char id_device[]="UC-64JTM16";
+int value = 0;
+
+int red = 27;
+int green = 26;
+int blue = 25;
+ int Buzzer = 14; //for ESP32 Microcontroller
+
+int umbral3 = 1300;
+int umbral2=800;
+int umbral1=600;
+
+
+#define battery 39   
+int value_baterry = 0;
+
+int CO2;
+
+//static uint8_t payloadBuffer2[] = "dasd";
+
+uint8_t payloadBuffer2[31];
+
+//_---------------------------------------------
+
+const uint8_t payloadBufferLength = 30;    // Adjust to fit max payload length
 
 
 //  █ █ █▀▀ █▀▀ █▀▄   █▀▀ █▀█ █▀▄ █▀▀   █▀▀ █▀█ █▀▄
@@ -715,33 +747,6 @@ lmic_tx_error_t scheduleUplink(uint8_t fPort, uint8_t* data, uint8_t dataLength,
 
 
 
-/* VARIABLES */
-#define led 15                                // LED utilizado para notificar la emisión de un mensaje.
-int counter = 0;
-
-
-unsigned long period_co2 = 10000;
-
-unsigned long getDataTimer = 0;
-
-
-char msg[70];
-
-char id_device[]="UC-64JTM16";
-int value = 0;
-
-int red = 27;
-int green = 26;
-int blue = 25;
- int Buzzer = 14; //for ESP32 Microcontroller
-
-int umbral3 = 1300;
-int umbral2=800;
-int umbral1=600;
-
-
-#define battery 39   
-int value_baterry = 0;
 
 // ----------------------------------- USER CODE END ---------------------------
 static volatile uint16_t counter_ = 0;
@@ -797,8 +802,8 @@ void processWork(ostime_t doWorkJobTimeStamp)
         #ifdef USE_SERIAL
             printEvent(timestamp, "Input data collected", PrintTarget::Serial);
             printSpaces(serial, MESSAGE_INDENT);
-            serial.print(F("COUNTER value: "));
-            serial.println(counterValue);
+            serial.print(F("Message - counter: "));
+            serial.println(msg);
         #endif    
 
         // For simplicity LMIC-node will try to send an uplink
@@ -817,13 +822,22 @@ void processWork(ostime_t doWorkJobTimeStamp)
         }
         else
         {
-            // Prepare uplink payload.
+            // Prepare uplink payload
             uint8_t fPort = 10;
-            payloadBuffer[0] = counterValue >> 8;
-            payloadBuffer[1] = counterValue & 0xFF;
-            uint8_t payloadLength = 2;
+            // payloadBuffer[0] = counterValue >> 8;
+            // payloadBuffer[1] = counterValue & 0xFF;
+        //    payloadBuffer[] = "as";
+            
+            snprintf(msg, 30,"%s,%ld,%ld",id_device, CO2,value_baterry);
+            for (int i = 0; i < 30; i++)
+            {
+            payloadBuffer2[i] = uint8_t(msg[i]);
+            }
+            
+            
+            uint8_t payloadLength = 30;
 
-            scheduleUplink(fPort, payloadBuffer, payloadLength);
+            scheduleUplink(fPort, payloadBuffer2, sizeof(payloadBuffer2)-1);
         }
     }
 }    
@@ -952,8 +966,11 @@ void loop()
 
     if (millis() - getDataTimer >= period_co2)
     {
-        int CO2; 
+         
 
+        value_baterry = analogRead(battery);
+        Serial.print("Sending battery: ");
+        Serial.println(value_baterry);
         /* note: getCO2() default is command "CO2 Unlimited". This returns the correct CO2 reading even 
         if below background CO2 levels or above range (useful to validate sensor). You can use the 
         usual documented command with getCO2(false) */
@@ -994,7 +1011,7 @@ void loop()
         getDataTimer = millis();  // get time
 
 
-        snprintf(msg, 70,"%s,%ld",id_device, CO2);
+        snprintf(msg, 70,"%s,%ld,%ld",id_device, CO2,value_baterry);
         Serial.print("Sending packet: ");
         Serial.println(msg);
 
